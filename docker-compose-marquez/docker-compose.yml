@@ -67,7 +67,7 @@ services:
     volumes:
       - ./dags:/opt/bitnami/airflow/dags
       - ./airflow.cfg:/opt/bitnami/airflow/airflow.cfg
-      -   /whl:/whl
+      - /whl:/whl
       - type: bind
         source: ${PWD}/requirements.txt
         target: /bitnami/python/requirements.txt
@@ -99,13 +99,11 @@ services:
 
   postgres:
     image: bitnami/postgresql:12.1.0
-    ports:
-      - "5432:5432"
     environment:
       - ALLOW_EMPTY_PASSWORD=yes
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=password
-      - AIRFLOW_USER=airflow
+      - AIRFLOW_USER=airflowairflow
       - AIRFLOW_PASSWORD=airflow
       - AIRFLOW_DB=airflow
       - MARQUEZ_USER=marquez
@@ -115,7 +113,7 @@ services:
       - EXAMPLE_PASSWORD=example
       - EXAMPLE_DB=example
     volumes:
-      - ./docker/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+      - ./docker/init-db.sh:/docker/init-db.sh
 
   redis:
     image: bitnami/redis:6.0.6
@@ -134,8 +132,8 @@ services:
       - ./import:/import
       - ./logs:/logs
       - ./plugins:/plugins
-    environment: 
+    environment:
       # Raise memory limits
       - NEO4J_dbms_memory_pagecache_size=1G
       - NEO4J_dbms.memory.heap.initial_size=1G
-      - NEO4J_dbms_memory_heap_max__size=1G
+      - NEO4J_dbms_memory_hea

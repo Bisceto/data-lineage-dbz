@@ -9,6 +9,7 @@ const neo4jUsername = "neo4j";
 const neo4jPassword = "password"
 
 var neo4j = require("neo4j-driver");
+const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 
 //Dependencies
 app.use(express.json());
@@ -153,6 +154,28 @@ function runCypher(query, params) {
     });
 }
 
+const dagWriter = createCsvWriter({
+    path: './csv/dags.csv',
+    header: [
+        {id: 'task_id', title: 'TASK_ID'},
+        // {id: 'run_date', title: 'RUN_DATE'}
+    ]
+});
+const jobWriter = createCsvWriter({
+    path: './csv/jobs.csv',
+    header: [
+        {id: 'task_id', title: 'TASK_ID'},
+        // {id: 'run_date', title: 'RUN_DATE'}
+    ]
+});
+const relationshipWriter = createCsvWriter({
+    path: './csv/relationships.csv',
+    header: [
+        {id: 'task_id', title: 'TASK_ID'},
+        // {id: 'run_date', title: 'RUN_DATE'}
+    ]
+});
+
 //Second draft of algo. Async considered
 function lineageCreation(parentDagId, nextTaskIds, waitForCompletion) {
   var roots = [];
@@ -169,7 +192,11 @@ function lineageCreation(parentDagId, nextTaskIds, waitForCompletion) {
       dag.tasks.forEach((task) => {   
         //Create nodes
         console.log(parentDagId + "." + task.task_id + " Created")
-        runCypher('MATCH (parentDag:Dag{dagId:$dagIdParam}) MERGE (parentDag)-[:is_parent_of]->(job:Job{taskId:$taskIdParam})', {taskIdParam:parentDagId + "." + task.task_id, dagIdParam: parentDagId})
+        jobWriter.writeRecords([{task_id: task.task_id}])
+          .then(() => {
+            console.log("Wrote to job csv");
+          })
+        // runCypher('MATCH (parentDag:Dag{dagId:$dagIdParam}) MERGE (parentDag)-[:is_parent_of]->(job:Job{taskId:$taskIdParam})', {taskIdParam:parentDagId + "." + task.task_id, dagIdParam: parentDagId})
         if (
           waitForCompletion &&
           task.downstream_task_ids.length == 0 &&
@@ -178,7 +205,7 @@ function lineageCreation(parentDagId, nextTaskIds, waitForCompletion) {
           //Create link in neo4j with nextTaskIds (Might need to loop)
           nextTaskIds.forEach((nextTaskId) => {
             console.log(parentDagId + "." + task.task_id + " -> " + nextTaskId);
-            runCypher('MATCH (downstream_task:Job{taskId:$downstreamTaskIdParam}), (next_task:Job{taskId:$nextTaskIdParam}) MERGE (downstream_task)-[:activates]->(next_task)', {downstreamTaskIdParam:parentDagId + "." + task.task_id, nextTaskIdParam: nextTaskId})
+            // runCypher('MATCH (downstream_task:Job{taskId:$downstreamTaskIdParam}), (next_task:Job{taskId:$nextTaskIdParam}) MERGE (downstream_task)-[:activates]->(next_task)', {downstreamTaskIdParam:parentDagId + "." + task.task_id, nextTaskIdParam: nextTaskId})
           });
         }
       });
@@ -210,7 +237,7 @@ function lineageCreation(parentDagId, nextTaskIds, waitForCompletion) {
               if (!wait_for_completion) {
                 task.downstream_task_ids.forEach((downStreamTask) => {
                   console.log(parentDagId + "." + task.task_id + " -> " + downStreamTask);
-                  runCypher('MATCH (downstream_task:Job{taskId:$downstreamTaskIdParam}), (next_task:Job{taskId:$nextTaskIdParam}) MERGE (downstream_task)-[:activates]->(next_task)', {downstreamTaskIdParam:parentDagId + "." + task.task_id, nextTaskIdParam: downstreamTask})
+                  // runCypher('MATCH (downstream_task:Job{taskId:$downstreamTaskIdParam}), (next_task:Job{taskId:$nextTaskIdParam}) MERGE (downstream_task)-[:activates]->(next_task)', {downstreamTaskIdParam:parentDagId + "." + task.task_id, nextTaskIdParam: downstreamTask})
                 });
               }
               const target_dag_id =
@@ -224,14 +251,14 @@ function lineageCreation(parentDagId, nextTaskIds, waitForCompletion) {
                 ).then((downstream_roots) => {
                   downstream_roots.forEach((root_task_id) => {
                     console.log(parentDagId + "." + task.task_id + " -> " + root_task_id);
-                    runCypher('MATCH (downstream_task:Job{taskId:$downstreamTaskIdParam}), (next_task:Job{taskId:$nextTaskIdParam}) MERGE (downstream_task)-[:activates]->(next_task)', {downstreamTaskIdParam:parentDagId + "." + task.task_id, nextTaskIdParam: root_task_id})
+                    // runCypher('MATCH (downstream_task:Job{taskId:$downstreamTaskIdParam}), (next_task:Job{taskId:$nextTaskIdParam}) MERGE (downstream_task)-[:activates]->(next_task)', {downstreamTaskIdParam:parentDagId + "." + task.task_id, nextTaskIdParam: root_task_id})
                   });
                 })
               );
             } else {
               task.downstream_task_ids.forEach((downStreamTask) => {
                 console.log(parentDagId + "." + task.task_id + " -> " + downStreamTask);
-                runCypher('MATCH (downstream_task:Job{taskId:$downstreamTaskIdParam}), (next_task:Job{taskId:$nextTaskIdParam}) MERGE (downstream_task)-[:activates]->(next_task)', {downstreamTaskIdParam:parentDagId + "." + task.task_id, nextTaskIdParam: downStreamTask})
+                // runCypher('MATCH (downstream_task:Job{taskId:$downstreamTaskIdParam}), (next_task:Job{taskId:$nextTaskIdParam}) MERGE (downstream_task)-[:activates]->(next_task)', {downstreamTaskIdParam:parentDagId + "." + task.task_id, nextTaskIdParam: downStreamTask})
               });
             }
           });
@@ -240,9 +267,13 @@ function lineageCreation(parentDagId, nextTaskIds, waitForCompletion) {
       });
 
       console.log("Exiting " + parentDagId);
+      if (nextTaskIds == null) {
+        //run the import command
+        // LOAD CSV WITH HEADERS FROM 'file:///path/to/your/file.csv' AS row
+        // MERGE (:Label {property1: row.column1, property2: row.column2, ...})
+      }
       return Promise.all(fetchPromises).then(() => roots);
     });
-    
 }
 
 
